@@ -9,6 +9,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { errorMiddleware } from "./middlewares/errorMiddleware.js";
 import connectDB from "./config/connectDB.js";
+import messageRoutes from "./routes/messageRoutes.js";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -34,6 +35,7 @@ app.use(limiter);
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/message", messageRoutes);
 
 // Error-handling middleware (must be after all routes)
 app.use(errorMiddleware);
