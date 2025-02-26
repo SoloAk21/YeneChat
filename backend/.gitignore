@@ -1,0 +1,20 @@
+# Node.js dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# Build directories
+dist/
+build/
+
+# Cloudinary or any private credentials (make sure not to commit these)
+config/
