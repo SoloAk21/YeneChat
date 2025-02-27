@@ -24,7 +24,7 @@ function Navbar() {
   };
 
   return (
-    <nav className="absolute top-0 left-0 right-0 bg-base-100 shadow-md">
+    <nav className="fixed z-50 top-0 left-0 right-0  shadow-md">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center">
         {/* Left side (App name) */}
         <div className="text-xl font-bold">
@@ -43,7 +43,7 @@ function Navbar() {
 
         {/* Collapsed Menu for Mobile */}
         {isMenuOpen && (
-          <div className="md:hidden absolute top-16 right-4 bg-base-100 p-4 rounded-md shadow-md">
+          <div className="md:hidden absolute top-16 right-4  p-4 rounded-md shadow-md">
             {authUser ? (
               <div className="flex flex-col gap-2">
                 <Link

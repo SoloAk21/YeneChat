@@ -24,8 +24,8 @@ function LoginPage() {
   };
 
   return (
-    <div className="h-screen  flex items-center justify-center bg-base-200">
-      <div className="card w-full max-w-md bg-base-100 shadow-xl">
+    <div className="h-screen  flex items-center justify-center">
+      <div className="card w-full max-w-md  shadow-xl">
         <div className="card-body">
           <h2 className="card-title text-2xl font-bold mb-4">Login</h2>
           {error && <div className="text-red-500 mb-4">{error}</div>}

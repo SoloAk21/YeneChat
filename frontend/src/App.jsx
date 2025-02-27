@@ -9,13 +9,21 @@ import SignupPage from "./pages/SignupPage";
 import useAuthStore from "./store/useAuthStore";
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
+import useThemeStore from "./store/useThemeStore";
 
 function App() {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
+  const { theme } = useThemeStore(); // Get the theme from zustand store
 
+  // Check for authentication on mount
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Apply the selected theme to the document
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme); // Apply theme globally
+  }, [theme]);
 
   if (isCheckingAuth && !authUser) {
     return (
