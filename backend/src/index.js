@@ -9,7 +9,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { errorMiddleware } from "./middlewares/errorMiddleware.js";
 import connectDB from "./config/connectDB.js";
-import messageRoutes from "./routes/messageRoutes.js";
+import messageRoutes from "./routes/message.route.js";
 
 const app = express();
 const port = process.env.PORT || 5000;

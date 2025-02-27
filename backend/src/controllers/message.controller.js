@@ -2,6 +2,7 @@ import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 import { errorHandler } from "../utils/errorHandler.js";
 import crypto from "crypto";
+import cloudinary from "../config/cloudinary.js";
 
 /**
  * Encrypts a message using AES-256-CBC
@@ -58,10 +59,6 @@ export const getUsers = async (req, res, next) => {
 /**
  * Send a message
  */
-import cloudinary from "../config/cloudinary.js";
-import Message from "../models/message.model.js";
-import User from "../models/user.model.js";
-import { errorHandler } from "../utils/errorHandler.js";
 
 export const sendMessage = async (req, res, next) => {
   try {
