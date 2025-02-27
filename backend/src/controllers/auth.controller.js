@@ -108,50 +108,27 @@ export const logout = (req, res, next) => {
 
 import cloudinary from "../config/cloudinary.js";
 
-export const updateProfile = async (req, res, next) => {
+export const updateProfile = async (req, res) => {
   try {
     const { profilePicture } = req.body;
-    const { userId } = req.user;
+    const userId = req.user._id;
 
-    // Check if the user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return next(errorHandler(404, "User not found"));
+    if (!profilePicture) {
+      return res.status(400).json({ message: "Profile pic is required" });
     }
 
-    let imageUrl = user.profilePicture; // Keep old image if no new one is provided
+    const uploadResponse = await cloudinary.uploader.upload(profilePicture);
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePicture: uploadResponse.secure_url },
+      { new: true }
+    );
 
-    // If there's a new profile picture, upload to Cloudinary
-    if (profilePicture) {
-      const uploadedImage = await cloudinary.uploader.upload(profilePicture, {
-        folder: "user_profiles",
-        public_id: `profile_${userId}`,
-        overwrite: true,
-        transformation: [{ width: 500, height: 500, crop: "limit" }], // Resize for efficiency
-      });
-
-      imageUrl = uploadedImage.secure_url;
-    }
-
-    // Update user profile
-    user.profilePicture = imageUrl;
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Profile updated successfully",
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        profilePicture: user.profilePicture,
-      },
-    });
+    res.status(200).json(updatedUser);
   } catch (error) {
-    next(errorHandler(500, "Failed to update profile"));
+    res.status(500).json({ message: "Internal server error" });
   }
 };
-
 export const checkAuth = async (req, res, next) => {
   try {
     if (!req.user) {

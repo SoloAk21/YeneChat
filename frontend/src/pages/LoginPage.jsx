@@ -17,7 +17,6 @@ function LoginPage() {
       toast.success("Login successful! Redirecting...");
       navigate("/");
     } catch (error) {
-      console.log(error);
       const errorMessage = error.response?.data?.message || "Login failed";
       setError(errorMessage);
       toast.error(errorMessage);
@@ -25,7 +24,7 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center bg-base-200">
+    <div className="h-screen  flex items-center justify-center bg-base-200">
       <div className="card w-full max-w-md bg-base-100 shadow-xl">
         <div className="card-body">
           <h2 className="card-title text-2xl font-bold mb-4">Login</h2>
