@@ -1,99 +1,86 @@
-import { useChatStore } from "../store/useChatStore";
-import { useEffect, useRef } from "react";
+import { create } from "zustand";
+import { axiosInstance } from "../utils/axios";
+import toast from "react-hot-toast";
 
-import ChatHeader from "./ChatHeader";
-import MessageInput from "./MessageInput";
-import MessageSkeleton from "./skeletons/MessageSkeleton";
-import { useAuthStore } from "../store/useAuthStore";
-import { formatMessageTime } from "../lib/utils";
+export const useChatStore = create((set, get) => ({
+  messages: [],
+  users: [],
+  selectedUser: null,
+  isUsersLoading: false,
+  isMessagesLoading: false,
 
-const ChatContainer = () => {
-  const {
-    messages,
-    getMessages,
-    isMessagesLoading,
-    selectedUser,
-    subscribeToMessages,
-    unsubscribeFromMessages,
-  } = useChatStore();
-  const { authUser } = useAuthStore();
-  const messageEndRef = useRef(null);
+  // Fetch users dynamically from the backend
+  getUsers: async () => {
+    set({ isUsersLoading: true });
+    try {
+      const res = await axiosInstance.get("/message/users");
 
-  useEffect(() => {
-    getMessages(selectedUser._id);
+      // Assuming '/users' endpoint returns the list of users
+      set({ users: res.data.users });
+    } catch (error) {
+      console.log(error);
 
-    subscribeToMessages();
-
-    return () => unsubscribeFromMessages();
-  }, [
-    selectedUser._id,
-    getMessages,
-    subscribeToMessages,
-    unsubscribeFromMessages,
-  ]);
-
-  useEffect(() => {
-    if (messageEndRef.current && messages) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+      toast.error(error.response?.data?.message || "Error fetching users");
+    } finally {
+      set({ isUsersLoading: false });
     }
-  }, [messages]);
+  },
 
-  if (isMessagesLoading) {
-    return (
-      <div className="flex-1 flex flex-col overflow-auto">
-        <ChatHeader />
-        <MessageSkeleton />
-        <MessageInput />
-      </div>
-    );
-  }
+  // Fetch messages dynamically based on the selected user
+  getMessages: async (userId) => {
+    set({ isMessagesLoading: true });
+    try {
+      const res = await axiosInstance.get(`/message/${userId}`); // Assuming '/messages/:id' returns messages
+      set({ messages: res.data.messages });
+    } catch (error) {
+      console.log(error);
 
-  return (
-    <div className="flex-1 flex flex-col overflow-auto">
-      <ChatHeader />
+      toast.error(error.response?.data?.message || "Error fetching messages");
+    } finally {
+      set({ isMessagesLoading: false });
+    }
+  },
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message._id}
-            className={`chat ${
-              message.senderId === authUser._id ? "chat-end" : "chat-start"
-            }`}
-            ref={messageEndRef}
-          >
-            <div className=" chat-image avatar">
-              <div className="size-10 rounded-full border">
-                <img
-                  src={
-                    message.senderId === authUser._id
-                      ? authUser.profilePic || "/avatar.png"
-                      : selectedUser.profilePic || "/avatar.png"
-                  }
-                  alt="profile pic"
-                />
-              </div>
-            </div>
-            <div className="chat-header mb-1">
-              <time className="text-xs opacity-50 ml-1">
-                {formatMessageTime(message.createdAt)}
-              </time>
-            </div>
-            <div className="chat-bubble flex flex-col">
-              {message.image && (
-                <img
-                  src={message.image}
-                  alt="Attachment"
-                  className="sm:max-w-[200px] rounded-md mb-2"
-                />
-              )}
-              {message.text && <p>{message.text}</p>}
-            </div>
-          </div>
-        ))}
-      </div>
+  // Send a message dynamically
+  sendMessage: async (messageData) => {
+    const { selectedUser, messages } = get();
 
-      <MessageInput />
-    </div>
-  );
-};
-export default ChatContainer;
+    // Create a temporary message with a unique tempId
+    const tempMessage = {
+      _id: Date.now(), // Temporary ID
+      text: messageData.text,
+      senderId: selectedUser._id,
+      status: "sending",
+      tempId: Date.now(), // Unique temporary ID
+    };
+
+    // Optimistically update the state by adding the temporary message
+    set({ messages: [...messages, tempMessage] });
+
+    try {
+      const res = await axiosInstance.post(
+        `/message/send/${selectedUser._id}`,
+        messageData
+      );
+      // Update the message with the server response
+      set({
+        messages: messages.map((msg) =>
+          msg.tempId === tempMessage.tempId
+            ? { ...msg, ...res.data, status: "sent" }
+            : msg
+        ),
+      });
+    } catch (error) {
+      toast.error(error.response.data.message);
+
+      // In case of error, mark the message as failed
+      set({
+        messages: messages.map((msg) =>
+          msg.tempId === tempMessage.tempId ? { ...msg, status: "failed" } : msg
+        ),
+      });
+    }
+  },
+
+  setSelectedUser: (selectedUser) => set({ selectedUser }),
+}));

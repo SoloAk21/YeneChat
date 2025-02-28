@@ -10,8 +10,8 @@ import cookieParser from "cookie-parser";
 import { errorMiddleware } from "./middlewares/errorMiddleware.js";
 import connectDB from "./config/connectDB.js";
 import messageRoutes from "./routes/message.route.js";
+import { app, server } from "./config/socket.js";
 
-const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
@@ -45,7 +45,7 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    app.listen(port, () => {
+    server.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
   } catch (error) {
