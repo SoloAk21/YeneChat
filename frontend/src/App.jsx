@@ -34,7 +34,7 @@ function App() {
   }
 
   return (
-    <div className="h-screen">
+    <div className="h-screen pt-16">
       <Toaster position="top-right" />
       <Navbar />
       <Routes>

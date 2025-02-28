@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import validator from "validator";
 import crypto from "crypto";
 
 const { Schema } = mongoose;
@@ -16,10 +15,13 @@ const messageSchema = new Schema(
       ref: "User",
       required: true,
     },
-    content: {
+    encryptedContent: {
       type: String,
       required: true,
-      trim: true,
+    },
+    iv: {
+      type: String, // Store IV for decryption
+      required: true,
     },
     attachments: [
       {
@@ -31,16 +33,6 @@ const messageSchema = new Schema(
       type: String,
       enum: ["sent", "delivered", "read"],
       default: "sent",
-    },
-    reactions: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Reaction",
-      },
-    ],
-    encryptedContent: {
-      type: String,
-      required: true,
     },
     sentAt: {
       type: Date,
@@ -54,26 +46,24 @@ const messageSchema = new Schema(
   { timestamps: true }
 );
 
-// Validate the content length
-messageSchema.path("content").validate((value) => {
-  return validator.isLength(value, { min: 1, max: 500 });
-}, "Message content must be between 1 and 500 characters");
-
-// Indexing for faster querying
-messageSchema.index({ sender: 1, receiver: 1, sentAt: -1 });
-
-// Pre-save hook to encrypt message content
+// Encrypt message before saving
 messageSchema.pre("save", function (next) {
-  if (this.isModified("content")) {
-    const cipher = crypto.createCipher(
-      "aes-256-cbc",
-      process.env.ENCRYPTION_KEY
-    );
-    let encrypted = cipher.update(this.content, "utf8", "hex");
-    encrypted += cipher.final("hex");
-    this.encryptedContent = encrypted;
-  }
+  if (this.isModified("encryptedContent")) return next();
+
+  const key = Buffer.from(process.env.ENCRYPTION_KEY, "hex");
+  const iv = crypto.randomBytes(16); // Generate a unique IV for each message
+
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  let encrypted = cipher.update(this.encryptedContent, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
+  this.iv = iv.toString("hex"); // Store IV
+  this.encryptedContent = encrypted;
+
   next();
 });
+
+// Indexing for fast querying
+messageSchema.index({ sender: 1, receiver: 1, sentAt: -1 });
 
 export default mongoose.model("Message", messageSchema);

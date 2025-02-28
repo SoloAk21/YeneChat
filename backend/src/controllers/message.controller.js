@@ -7,54 +7,78 @@ import cloudinary from "../config/cloudinary.js";
 /**
  * Encrypts a message using AES-256-CBC
  */
-const encryptMessage = (content) => {
-  const cipher = crypto.createCipher("aes-256-cbc", process.env.ENCRYPTION_KEY);
+const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY, "hex"); // 32-byte key
+
+/**
+ * Encrypts a message using AES-256-CBC
+ */
+export const encryptMessage = (content) => {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv("aes-256-cbc", ENCRYPTION_KEY, iv);
+
   let encrypted = cipher.update(content, "utf8", "hex");
   encrypted += cipher.final("hex");
-  return encrypted;
+
+  return { encryptedContent: encrypted, iv: iv.toString("hex") };
 };
 
 /**
  * Decrypts an encrypted message
  */
-const decryptMessage = (encryptedContent) => {
-  const decipher = crypto.createDecipher(
+export const decryptMessage = (encryptedContent, iv) => {
+  const decipher = crypto.createDecipheriv(
     "aes-256-cbc",
-    process.env.ENCRYPTION_KEY
+    ENCRYPTION_KEY,
+    Buffer.from(iv, "hex")
   );
+
   let decrypted = decipher.update(encryptedContent, "hex", "utf8");
   decrypted += decipher.final("utf8");
+
   return decrypted;
 };
 
 export const getUsers = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const loggedInUserId = req.user._id;
 
-    // Find conversations where the authenticated user is either the sender or receiver
-    const messages = await Message.find({
-      $or: [{ sender: userId }, { receiver: userId }],
-    }).select("sender receiver");
-
-    // Extract unique user IDs
-    const userIds = new Set();
-    messages.forEach((msg) => {
-      userIds.add(msg.sender.toString());
-      userIds.add(msg.receiver.toString());
-    });
-
-    userIds.delete(userId.toString()); // Remove the authenticated user
-
-    // Fetch user details
-    const users = await User.find({ _id: { $in: Array.from(userIds) } }).select(
+    const users = await User.find({ _id: { $ne: loggedInUserId } }).select(
       "-password"
-    );
-
+    ); // Select all users except passwords and the logged in user
     res.status(200).json({ success: true, users });
   } catch (error) {
     next(errorHandler(500, error.message));
   }
 };
+
+// export const getUsers = async (req, res, next) => {
+//   try {
+//     const userId = req.user._id;
+
+//     // Find conversations where the authenticated user is either the sender or receiver
+//     const messages = await Message.find({
+//       $or: [{ sender: userId }, { receiver: userId }],
+//     }).select("sender receiver");
+
+//     // Extract unique user IDs
+//     const userIds = new Set();
+//     messages.forEach((msg) => {
+//       userIds.add(msg.sender.toString());
+//       userIds.add(msg.receiver.toString());
+//     });
+
+//     userIds.delete(userId.toString()); // Remove the authenticated user
+
+//     // Fetch user details
+//     const users = await User.find({ _id: { $in: Array.from(userIds) } }).select(
+//       "-password"
+//     );
+
+//     res.status(200).json({ success: true, users });
+//   } catch (error) {
+//     next(errorHandler(500, error.message));
+//   }
+// };
 
 /**
  * Send a message
@@ -62,102 +86,41 @@ export const getUsers = async (req, res, next) => {
 
 export const sendMessage = async (req, res, next) => {
   try {
-    const { content, attachments } = req.body;
+    const { text: content } = req.body; // Only handle text, no attachments
     const senderId = req.user._id;
     const receiverId = req.params.id;
 
-    // Validate request
-    if (!content && (!attachments || attachments.length === 0)) {
-      return next(
-        errorHandler(400, "Message must contain text or an attachment")
-      );
+    if (!content) {
+      return next(errorHandler(400, "Message must contain text"));
     }
 
-    // Check if the receiver exists
     const receiver = await User.findById(receiverId);
-    if (!receiver) {
-      return next(errorHandler(404, "Receiver not found"));
-    }
+    if (!receiver) return next(errorHandler(404, "Receiver not found"));
 
-    // Check if the sender is blocked by the receiver
-    if (receiver.blockedUsers?.includes(senderId.toString())) {
-      return next(errorHandler(403, "You are blocked by this user"));
-    }
+    // Encrypt message
+    const { encryptedContent, iv } = encryptMessage(content);
 
-    let uploadedAttachments = [];
-
-    // Upload attachments to Cloudinary (if any)
-    if (attachments && attachments.length > 0) {
-      const uploadPromises = attachments.map(async (file) => {
-        try {
-          const uploadResult = await cloudinary.uploader.upload(file, {
-            folder: "messages",
-            resource_type: "auto", // Allows images, videos, and other file types
-          });
-          return {
-            url: uploadResult.secure_url,
-            type: uploadResult.resource_type,
-          };
-        } catch (err) {
-          console.error("Cloudinary Upload Error:", err);
-          return null;
-        }
-      });
-
-      uploadedAttachments = (await Promise.all(uploadPromises)).filter(Boolean);
-    }
-
-    // Create a new message
+    // Save message with encrypted content
     const message = new Message({
       sender: senderId,
       receiver: receiverId,
-      content,
-      attachments: uploadedAttachments,
+      encryptedContent,
+      iv,
       status: "sent",
     });
 
-    // Save message to database
     await message.save();
 
-    // Emit real-time message event via Socket.io
-    //    req.io.to(receiverId.toString()).emit("newMessage", {
-    //      messageId: message._id,
-    //      sender: {
-    //        id: senderId,
-    //        fullName: req.user.fullName,
-    //        profilePicture: req.user.profilePicture,
-    //      },
-    //      content,
-    //      attachments: uploadedAttachments,
-    //      sentAt: message.createdAt,
-    //    });
-
-    // Respond with the saved message details
-    res.status(201).json({
-      success: true,
-      message: {
-        id: message._id,
-        sender: {
-          id: senderId,
-          fullName: req.user.fullName,
-          profilePicture: req.user.profilePicture,
-        },
-        receiver: {
-          id: receiver._id,
-          fullName: receiver.fullName,
-          profilePicture: receiver.profilePicture,
-        },
-        content,
-        attachments: uploadedAttachments,
-        status: message.status,
-        sentAt: message.createdAt,
-      },
-    });
+    res.status(201).json({ success: true, messageId: message._id });
   } catch (error) {
+    console.log(error);
     next(errorHandler(500, "Failed to send message"));
   }
 };
 
+/**
+ * Get messages between two users with pagination
+ */
 /**
  * Get messages between two users with pagination
  */
@@ -170,6 +133,7 @@ export const getMessages = async (req, res, next) => {
       return next(errorHandler(400, "Receiver ID is required"));
     }
 
+    // Retrieve messages between the sender and receiver
     const messages = await Message.find({
       $or: [
         { sender: userId, receiver: receiverId },
@@ -177,9 +141,39 @@ export const getMessages = async (req, res, next) => {
       ],
     })
       .sort({ sentAt: -1 }) // Sort messages by latest first
-      .populate("sender receiver", "fullName profilePicture");
+      .populate("sender receiver", "fullName profilePicture"); // Avoid sensitive fields like password
 
-    res.status(200).json({ success: true, messages });
+    // Decrypt the encrypted content before sending
+    const decryptedMessages = messages.map((message) => {
+      const decryptedContent = decryptMessage(
+        message.encryptedContent,
+        message.iv
+      );
+
+      // Anonymize sender/receiver details to avoid sending sensitive data
+      const messageDetails = {
+        senderId: message.sender._id,
+        receiverId: message.receiver._id,
+        decryptedContent,
+        sentAt: message.sentAt,
+        status: message.status,
+        readAt: message.readAt,
+        attachments: message.attachments,
+        // Optionally add a flag to include sender/receiver's profile info, if needed, but exclude sensitive data
+        senderProfile: {
+          fullName: message.sender.fullName,
+          profilePicture: message.sender.profilePicture,
+        },
+        receiverProfile: {
+          fullName: message.receiver.fullName,
+          profilePicture: message.receiver.profilePicture,
+        },
+      };
+
+      return messageDetails;
+    });
+
+    res.status(200).json({ success: true, messages: decryptedMessages });
   } catch (error) {
     next(errorHandler(500, error.message));
   }
