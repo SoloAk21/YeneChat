@@ -1,7 +1,7 @@
 
-# Aether AI - Secure Chat Application
+# YeneChat - Secure Chat Application
 
-Aether AI is a secure, full-stack chat application designed for real-time messaging with end-to-end encryption. It integrates user authentication, secure message storage, and real-time communication features. The application ensures privacy and security by encrypting messages before storing them in the database.
+YeneChat is a secure, full-stack chat application designed for real-time messaging with end-to-end encryption. It integrates user authentication, secure message storage, and real-time communication features. The application ensures privacy and security by encrypting messages before storing them in the database.
 
 ---
 
